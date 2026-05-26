@@ -1,0 +1,7 @@
+[[redirects]]
+  from = "/n8n-proxy/*"
+  to = "https://n8n-production-dbd0.up.railway.app/:splat"
+  status = 200
+  force = true
+  [redirects.headers]
+    Access-Control-Allow-Origin = "*"
