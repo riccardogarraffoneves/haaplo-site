@@ -495,7 +495,7 @@ function bubble(role, text){
 function scrollDown(){ const f=$("#feed"); f.scrollTop = f.scrollHeight; }
 
 /* loader con frasi che ruotano (versione semplice; i passi reali = aggiornamento futuro) */
-const LOAD_MSGS = ["Cerco nella memoria...","Ottimizzo il prompt...","Sto lavorando...","Creo la bozza..."];
+const LOAD_MSGS = ["Sto lavorando..."];
 function addLoader(){
   const wrap = document.createElement("div");
   wrap.className = "msg bot"; wrap.id = "loaderMsg";
