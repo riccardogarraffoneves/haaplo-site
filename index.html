@@ -234,6 +234,8 @@ input{font-family:inherit}
   .side{position:fixed;z-index:20;width:282px;transform:translateX(-100%);transition:transform .25s}
   .side.open{transform:none}
 }
+   @keyframes loaderPulse{0%,100%{opacity:.4}50%{opacity:1}}
+#loadTxt{animation:loaderPulse 1.6s ease-in-out infinite}
 </style>
 </head>
 <body>
