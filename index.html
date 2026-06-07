@@ -801,7 +801,15 @@ async function send(){
   try{
     const reply = await sendToAgent(text, c.sessionId);
     removeLoader();
-    c.messages.push({ role:"bot", text:reply, ts:Date.now() });
+    const botMsg = { role:"bot", text:reply, ts:Date.now() };
+    // se la risposta contiene un indirizzo immagine del nostro server, la mostro
+    const mImg = reply.match(/https?:\/\/\S+\/img\/[A-Za-z0-9_\-]+/);
+    if(mImg){
+      botMsg.img = mImg[0];
+      botMsg.text = reply.replace(mImg[0], "").trim();
+      if(!botMsg.text) botMsg.text = "Ecco il risultato.";
+    }
+    c.messages.push(botMsg);
   }catch(err){
     removeLoader();
     c.messages.push({ role:"bot", text:"Qualcosa e andato storto: " + err.message + ". Riprova." });
