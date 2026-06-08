@@ -261,6 +261,9 @@ input{font-family:inherit}
 .send:active{transform:scale(.94)}
 .send:disabled{opacity:.4;cursor:not-allowed}
 .send svg{width:19px;height:19px}
+.send .send-stop{display:none}
+.send.thinking .send-go{display:none}
+.send.thinking .send-stop{display:block}
 .mic{
   width:40px;height:40px;border-radius:11px;flex:none;
   background:var(--panel-2);border:1px solid var(--line);color:var(--muted);
@@ -422,8 +425,9 @@ input{font-family:inherit}
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v3"/></svg>
             <span class="micspin"></span>
           </button>
-          <button class="send" id="sendBtn">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+          <button class="send" id="sendBtn" aria-label="Invia">
+            <svg class="send-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+            <svg class="send-stop" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="2.5"/></svg>
           </button>
         </div>
         </div>
@@ -756,14 +760,15 @@ function removeLoader(){ const l=$("#loaderMsg"); if(l){ clearInterval(l._t); l.
 /* ============================================================
    INVIO ALL'AGENTE
    ============================================================ */
-async function sendToAgent(text, sessionId){
+async function sendToAgent(text, sessionId, signal){
   if(!AGENT_WEBHOOK_URL){
     return "Per ora non sono collegato al motore. Incolla l'indirizzo del webhook nel file (AGENT_WEBHOOK_URL) e potro rispondere davvero.";
   }
   const res = await fetch(AGENT_WEBHOOK_URL, {
     method:"POST",
     headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({ action:"sendMessage", sessionId, chatInput:text })
+    body: JSON.stringify({ action:"sendMessage", sessionId, chatInput:text }),
+    signal
   });
   if(!res.ok) throw new Error("HTTP " + res.status);
   const data = await res.json().catch(()=>null);
@@ -772,6 +777,7 @@ async function sendToAgent(text, sessionId){
 }
 
 let busy = false;
+let currentAbort = null; // per fermare l'agente mentre pensa
 let pendingImage = null; // immagine allegata in attesa: { file, dataURL }
 async function send(){
   const ta = $("#msgInput");
@@ -779,7 +785,7 @@ async function send(){
   if((!text && !pendingImage) || busy) return;
   const c = activeChat(); if(!c) return;
 
-  busy = true; $("#sendBtn").disabled = true;
+  busy = true; $("#sendBtn").classList.add("thinking");
 
   // messaggio dell'utente, con eventuale immagine allegata
   const userMsg = { role:"user", ts:Date.now() };
@@ -795,11 +801,12 @@ async function send(){
   if(toUpload) await uploadToServer(toUpload, userMsg);
 
   // senza testo non chiamo l'agente: l'immagine e' solo stata caricata
-  if(!text){ busy = false; $("#sendBtn").disabled = false; ta.focus(); return; }
+  if(!text){ busy = false; $("#sendBtn").classList.remove("thinking"); ta.focus(); return; }
 
   addLoader();
+  currentAbort = new AbortController();
   try{
-    const reply = await sendToAgent(text, c.sessionId);
+    const reply = await sendToAgent(text, c.sessionId, currentAbort.signal);
     removeLoader();
     const botMsg = { role:"bot", text:reply, ts:Date.now() };
     // se la risposta contiene un indirizzo immagine del nostro server, la mostro
@@ -812,12 +819,19 @@ async function send(){
     c.messages.push(botMsg);
   }catch(err){
     removeLoader();
-    c.messages.push({ role:"bot", text:"Qualcosa e andato storto: " + err.message + ". Riprova." });
+    if(err && err.name === "AbortError"){
+      c.messages.push({ role:"bot", text:"Fermato." });
+    } else {
+      c.messages.push({ role:"bot", text:"Qualcosa e andato storto: " + err.message + ". Riprova." });
+    }
   }
   saveChats(); renderFeed();
-  busy = false; $("#sendBtn").disabled = false; ta.focus();
+  busy = false; currentAbort = null; $("#sendBtn").classList.remove("thinking"); ta.focus();
 }
-$("#sendBtn").addEventListener("click", send);
+$("#sendBtn").addEventListener("click", () => {
+  if(busy){ if(currentAbort) currentAbort.abort(); return; }
+  send();
+});
 $("#msgInput").addEventListener("keydown", e => {
   if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); send(); }
 });
